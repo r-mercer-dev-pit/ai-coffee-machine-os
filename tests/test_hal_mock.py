@@ -1,5 +1,4 @@
-import pytest
-from rmer_ai_coffee.hal.mock import MockPump, MockHeater, MockValve, MockTempSensor
+from rmer_ai_coffee.hal.mock import MockPump, MockHeater, MockTempSensor
 
 def test_mock_pump():
     p = MockPump()
