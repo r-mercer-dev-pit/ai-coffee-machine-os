@@ -55,7 +55,11 @@ class PluginLoader:
         return None
 
     def _maybe_register(self, plugin_name: str, module: ModuleType) -> None:
-        """Attempt to extract metadata from module and register it."""
+        """Attempt to extract metadata from module and register it.
+
+        If PLUGIN_META exists but lacks a 'name' the loader treats that as an
+        error and raises PluginLoadError to avoid registering unnamed plugins.
+        """
         meta_dict = None
         if hasattr(module, "PLUGIN_META") and isinstance(getattr(module, "PLUGIN_META"), dict):
             meta_dict = getattr(module, "PLUGIN_META")
@@ -71,11 +75,14 @@ class PluginLoader:
             if hasattr(module, "PLUGIN_ENTRYPOINT"):
                 meta_dict["entrypoint"] = getattr(module, "PLUGIN_ENTRYPOINT")
 
-        if not meta_dict:
+        if meta_dict is None:
             return
 
-        # Build PluginMeta; if name missing, PluginRegistry.register will raise
-        name_to_register = meta_dict.get("name") or plugin_name
+        # Enforce presence of name in provided metadata
+        name_to_register = meta_dict.get("name")
+        if not name_to_register:
+            raise PluginLoadError(f"Plugin metadata provided but missing required 'name' field for plugin={plugin_name}")
+
         meta = PluginMeta(
             name=name_to_register,
             version=str(meta_dict.get("version")) if meta_dict.get("version") is not None else "0.0.0",
