@@ -1,0 +1,12 @@
+version: "3.8"
+
+services:
+  app:
+    build: ..
+    ports:
+      - "8000:8000"
+    environment:
+      HIL_RUN: "0"
+    volumes:
+      - ..:/app:cached
+    command: ["uvicorn", "rmer_ai_coffee.connectivity.rest_api:app", "--host", "0.0.0.0", "--port", "8000"]
