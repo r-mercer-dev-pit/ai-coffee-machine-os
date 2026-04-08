@@ -4,16 +4,15 @@ from ..hal.base import HardwareRegistry
 from ..services.brew_controller import BrewController
 
 app = FastAPI()
+# Use bootstrap to load configured drivers (mock by default)
+from ..core.bootstrap import bootstrap_from_config
+
 runner = ServiceRunner()
 
 @app.on_event("startup")
 async def startup_event():
-    # register mock components for now
-    from ..hal.mock import MockPump, MockHeater, MockValve, MockTempSensor
-    runner.hal.register("pump", MockPump())
-    runner.hal.register("heater", MockHeater())
-    runner.hal.register("valve", MockValve())
-    runner.hal.register("temp_sensor", MockTempSensor())
+    hal = bootstrap_from_config()
+    runner.hal = hal
     await runner.start()
 
 @app.on_event("shutdown")
