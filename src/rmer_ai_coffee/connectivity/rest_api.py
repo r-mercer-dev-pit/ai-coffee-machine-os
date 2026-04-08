@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from ..core.app import ServiceRunner
-from ..hal.base import HardwareRegistry
 from ..services.brew_controller import BrewController
 
 app = FastAPI()

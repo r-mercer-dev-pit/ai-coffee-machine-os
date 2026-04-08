@@ -1,4 +1,4 @@
-from typing import Dict, Callable, Any
+from typing import Callable, Any
 from .base import HardwareRegistry
 
 class HALRegistry(HardwareRegistry):
