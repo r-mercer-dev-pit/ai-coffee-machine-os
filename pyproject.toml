@@ -3,6 +3,9 @@ name = "ai-coffee-machine-os"
 version = "0.0.1"
 description = "AI-powered coffee machine OS skeleton"
 authors = ["r-mercer <rmercer-dev@example.com>"]
+packages = [
+  { include = "rmer_ai_coffee", from = "src" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -13,7 +16,7 @@ httpx = "^0.24.0"
 pydantic = "^1.10.9"
 asyncio-extras = "^1.2.0"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 black = "^24.3.0"
 ruff = "^0.14.0"
 isort = "^5.12.0"
