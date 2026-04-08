@@ -1,10 +1,8 @@
-"""HAL plugin loader with discovery, load, unload and simple registry.
+"""HAL plugin loader with discovery, load, unload and simple registry integration.
 
-Discovery rule: file '*_plugin.py' or package dir with '__init__.py'.
-
-This loader assigns a stable module name under the prefix
-'rmer_ai_coffee_plugins.<name>' when importing file-based plugins so that
-unload can clean up sys.modules reliably.
+This loader will attempt to register plugin metadata with an in-memory
+PluginRegistry when a loaded module exposes PLUGIN_META (dict) or
+PLUGIN_NAME (string) plus optional version/description.
 """
 from __future__ import annotations
 
@@ -15,15 +13,21 @@ from pathlib import Path
 from types import ModuleType
 from typing import List, Optional
 
+from .registry import PluginRegistry, PluginMeta
+
 
 class PluginLoadError(RuntimeError):
     pass
 
 
 class PluginLoader:
-    def __init__(self, config: Optional[dict] = None):
+    def __init__(self, config: Optional[dict] = None, registry: Optional[PluginRegistry] = None):
         self.config = config or {}
         self._loaded: dict[str, ModuleType] = {}
+        # registry to track plugin metadata
+        self.registry = registry or PluginRegistry()
+        # mapping plugin_name -> registered_name in registry
+        self._registered_names: dict[str, str] = {}
 
     def discover(self, paths: List[str]) -> List[str]:
         found: List[str] = []
@@ -50,6 +54,40 @@ class PluginLoader:
                 return pkg
         return None
 
+    def _maybe_register(self, plugin_name: str, module: ModuleType) -> None:
+        """Attempt to extract metadata from module and register it."""
+        meta_dict = None
+        if hasattr(module, "PLUGIN_META") and isinstance(getattr(module, "PLUGIN_META"), dict):
+            meta_dict = getattr(module, "PLUGIN_META")
+        elif hasattr(module, "PLUGIN_NAME"):
+            meta_dict = {"name": getattr(module, "PLUGIN_NAME")}
+            # optional fields
+            if hasattr(module, "PLUGIN_VERSION"):
+                meta_dict["version"] = getattr(module, "PLUGIN_VERSION")
+            elif hasattr(module, "__version__"):
+                meta_dict["version"] = getattr(module, "__version__")
+            if hasattr(module, "PLUGIN_DESCRIPTION"):
+                meta_dict["description"] = getattr(module, "PLUGIN_DESCRIPTION")
+            if hasattr(module, "PLUGIN_ENTRYPOINT"):
+                meta_dict["entrypoint"] = getattr(module, "PLUGIN_ENTRYPOINT")
+
+        if not meta_dict:
+            return
+
+        # Build PluginMeta; if name missing, PluginRegistry.register will raise
+        name_to_register = meta_dict.get("name") or plugin_name
+        meta = PluginMeta(
+            name=name_to_register,
+            version=str(meta_dict.get("version")) if meta_dict.get("version") is not None else "0.0.0",
+            entrypoint=meta_dict.get("entrypoint"),
+            description=meta_dict.get("description"),
+        )
+        try:
+            self.registry.register(meta)
+            self._registered_names[plugin_name] = name_to_register
+        except Exception as exc:
+            raise PluginLoadError(f"Failed to register plugin metadata for {plugin_name}: {exc}") from exc
+
     def load(self, name: str, paths: Optional[List[str]] = None) -> ModuleType:
         if name in self._loaded:
             return self._loaded[name]
@@ -64,7 +102,6 @@ class PluginLoader:
                     sys.path.insert(0, parent)
                 module = import_module(p.name)
             else:
-                # Use a consistent module name in the spec so loaders work correctly
                 mod_name = f"rmer_ai_coffee_plugins.{name}"
                 spec = importlib.util.spec_from_file_location(mod_name, str(p))
                 if spec is None or spec.loader is None:
@@ -73,11 +110,20 @@ class PluginLoader:
                 sys.modules[mod_name] = module
                 spec.loader.exec_module(module)  # type: ignore[arg-type]
             self._loaded[name] = module
+            # try to register metadata if present
+            self._maybe_register(name, module)
             return module
         except Exception as exc:
             raise PluginLoadError(f"Failed to load plugin {name}: {exc}") from exc
 
     def unload(self, name: str) -> None:
+        # unregister if previously registered
+        reg_name = self._registered_names.pop(name, None)
+        if reg_name is not None:
+            try:
+                self.registry.unregister(reg_name)
+            except Exception:
+                pass
         mod = self._loaded.pop(name, None)
         if mod is None:
             return
