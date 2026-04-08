@@ -1,28 +1,27 @@
 from fastapi import FastAPI
 from ..core.app import ServiceRunner
 from ..services.brew_controller import BrewController
+from ..core.bootstrap import bootstrap_from_config
 
 app = FastAPI()
-# Use bootstrap to load configured drivers (mock by default)
-from ..core.bootstrap import bootstrap_from_config
 
 runner = ServiceRunner()
 
-@app.on_event("startup")
+@app.on_event(startup)
 async def startup_event():
     hal = bootstrap_from_config()
     runner.hal = hal
     await runner.start()
 
-@app.on_event("shutdown")
+@app.on_event(shutdown)
 async def shutdown_event():
     await runner.stop()
 
-@app.get("/status")
+@app.get(/status)
 async def status():
-    return {"status": "ok"}
+    return {status: ok}
 
-@app.post("/brew")
+@app.post(/brew)
 async def brew():
     bc = BrewController(runner.hal)
     res = await bc.simple_brew()
