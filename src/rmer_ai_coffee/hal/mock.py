@@ -1,5 +1,4 @@
 from .base import PumpInterface, HeaterInterface, ValveInterface, TemperatureSensorInterface
-import asyncio
 
 class MockPump(PumpInterface):
     def __init__(self):
